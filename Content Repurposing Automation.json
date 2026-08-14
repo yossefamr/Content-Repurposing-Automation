@@ -1,0 +1,286 @@
+﻿{
+  "name": "Content Repurposing Automation",
+  "type": "SHARED",
+  "summary": "",
+  "description": "",
+  "tags": [],
+  "blogUrl": "",
+  "metadata": {
+    "externalId": "PvKGnzd53A2y0qGc80Hdo"
+  },
+  "author": "yossef amr",
+  "categories": [],
+  "pieces": [
+    "@activepieces/piece-notion",
+    "@activepieces/piece-http",
+    "@activepieces/piece-open-router",
+    "@activepieces/piece-telegram-bot"
+  ],
+  "flows": [
+    {
+      "displayName": "Content Repurposing Automation",
+      "trigger": {
+        "name": "trigger",
+        "valid": true,
+        "displayName": "Updated Database Item",
+        "nextAction": {
+          "name": "step_1",
+          "skip": false,
+          "type": "PIECE",
+          "valid": true,
+          "settings": {
+            "input": {
+              "url": "https://api.deepgram.com/v1/listen?model=nova-3&smart_format=true",
+              "body": {
+                "data": {
+                  "url": "{{trigger['output']['properties']['Video URL']['url']}}"
+                }
+              },
+              "method": "POST",
+              "headers": {
+                "Content-Type": "application/json",
+                "Authorization": "Token 90ba41d8f464f75ac505abf3a92f196494848c05"
+              },
+              "authType": "NONE",
+              "body_type": "json",
+              "use_proxy": false,
+              "authFields": {},
+              "failureMode": "continue_none",
+              "queryParams": {},
+              "proxy_settings": {},
+              "followRedirects": false,
+              "response_is_binary": false
+            },
+            "pieceName": "@activepieces/piece-http",
+            "actionName": "send_request",
+            "sampleData": {},
+            "pieceVersion": "0.11.18",
+            "propertySettings": {
+              "url": {
+                "type": "MANUAL"
+              },
+              "body": {
+                "type": "MANUAL",
+                "schema": {
+                  "data": {
+                    "type": "JSON",
+                    "required": true,
+                    "displayName": "JSON Body"
+                  }
+                }
+              },
+              "method": {
+                "type": "MANUAL"
+              },
+              "headers": {
+                "type": "MANUAL"
+              },
+              "timeout": {
+                "type": "MANUAL"
+              },
+              "authType": {
+                "type": "MANUAL"
+              },
+              "body_type": {
+                "type": "MANUAL"
+              },
+              "use_proxy": {
+                "type": "MANUAL"
+              },
+              "authFields": {
+                "type": "MANUAL",
+                "schema": {}
+              },
+              "failureMode": {
+                "type": "MANUAL"
+              },
+              "queryParams": {
+                "type": "MANUAL"
+              },
+              "proxy_settings": {
+                "type": "MANUAL",
+                "schema": {}
+              },
+              "followRedirects": {
+                "type": "MANUAL"
+              },
+              "response_is_binary": {
+                "type": "MANUAL"
+              }
+            },
+            "errorHandlingOptions": {
+              "retryOnFailure": {
+                "value": false
+              },
+              "continueOnFailure": {
+                "value": false
+              }
+            }
+          },
+          "nextAction": {
+            "name": "step_2",
+            "skip": false,
+            "type": "PIECE",
+            "valid": true,
+            "settings": {
+              "input": {
+                "auth": "{{connections['nLIQnkQMHEV8OvSnMrlcR']}}",
+                "model": "anthropic/claude-3-haiku",
+                "prompt": "You are an expert short-form content strategist. Analyze the provided video transcript and convert it into structured content.\nYou MUST respond with ONLY a raw valid JSON object (no markdown, no ```json wrapper) with this exact schema:\n{\n  \"short_form_scripts\": [\n    {\n      \"hook\": \"First 1-3 seconds scroll stopping line\",\n      \"body\": \"Core value, story, or payoff\",\n      \"cta\": \"Call to action\"\n    },\n    {\n      \"hook\": \"...\",\n      \"body\": \"...\",\n      \"cta\": \"...\"\n    },\n    {\n      \"hook\": \"...\",\n      \"body\": \"...\",\n      \"cta\": \"...\"\n    }\n  ],\n  \"linkedin_post\": \"Formatted engaging LinkedIn post text with emojis and line breaks.\"\n}\nTRANSCRIPT TO PROCESS: {{step_1['output']['body']['results']['channels'][0]['alternatives'][0]['transcript']}}",
+                "maxTokens": "800",
+                "temperature": "1"
+              },
+              "pieceName": "@activepieces/piece-open-router",
+              "actionName": "ask-lmm",
+              "sampleData": {},
+              "pieceVersion": "0.1.8",
+              "propertySettings": {
+                "topP": {
+                  "type": "MANUAL"
+                },
+                "model": {
+                  "type": "MANUAL"
+                },
+                "prompt": {
+                  "type": "MANUAL"
+                },
+                "maxTokens": {
+                  "type": "MANUAL"
+                },
+                "temperature": {
+                  "type": "MANUAL"
+                }
+              },
+              "errorHandlingOptions": {
+                "retryOnFailure": {
+                  "value": false
+                },
+                "continueOnFailure": {
+                  "value": false
+                }
+              }
+            },
+            "nextAction": {
+              "name": "step_3",
+              "skip": false,
+              "type": "CODE",
+              "valid": true,
+              "settings": {
+                "input": {
+                  "llm_output": "{{step_2['output']}}"
+                },
+                "sampleData": {},
+                "sourceCode": {
+                  "code": "export const code = async (inputs) => {\n  let rawText = inputs.llm_output;\n\n  // تنظيف أي markdown fences لو ظهرت\n  rawText = rawText.replace(/^```json\\s*/i, '').replace(/^```\\s*/i, '').replace(/```$/g, '').trim();\n\n  const content = JSON.parse(rawText);\n\n  // تنسيق الرسالة لـ Telegram\n  let message = \"🎬 *Short-Form Scripts*\\n\\n\";\n  content.short_form_scripts.forEach((s, i) => {\n    message += `*Script ${i+1}*\\n🪝 *Hook:* ${s.hook}\\n📜 *Body:* ${s.body}\\n👉 *CTA:* ${s.cta}\\n\\n`;\n  });\n\n  message += \"💼 *LinkedIn Post*\\n\\n\" + content.linkedin_post;\n\n  return { formatted_message: message };\n};",
+                  "packageJson": "{}"
+                },
+                "errorHandlingOptions": {
+                  "retryOnFailure": {
+                    "value": false
+                  },
+                  "continueOnFailure": {
+                    "value": false
+                  }
+                }
+              },
+              "nextAction": {
+                "name": "step_4",
+                "skip": false,
+                "type": "PIECE",
+                "valid": true,
+                "settings": {
+                  "input": {
+                    "auth": "{{connections['bBkbEDp9SJalepzGe7KGV']}}",
+                    "format": "HTML",
+                    "chat_id": "7774150189",
+                    "message": "{{step_3['output']['formatted_message']}}",
+                    "reply_markup": {},
+                    "protect_content": false,
+                    "web_page_preview": false,
+                    "disable_notification": false
+                  },
+                  "pieceName": "@activepieces/piece-telegram-bot",
+                  "actionName": "send_text_message",
+                  "sampleData": {},
+                  "pieceVersion": "0.6.9",
+                  "propertySettings": {
+                    "format": {
+                      "type": "MANUAL"
+                    },
+                    "chat_id": {
+                      "type": "MANUAL"
+                    },
+                    "message": {
+                      "type": "MANUAL"
+                    },
+                    "instructions": {
+                      "type": "MANUAL"
+                    },
+                    "reply_markup": {
+                      "type": "MANUAL"
+                    },
+                    "protect_content": {
+                      "type": "MANUAL"
+                    },
+                    "web_page_preview": {
+                      "type": "MANUAL"
+                    },
+                    "message_thread_id": {
+                      "type": "MANUAL"
+                    },
+                    "instructions_format": {
+                      "type": "MANUAL"
+                    },
+                    "reply_to_message_id": {
+                      "type": "MANUAL"
+                    },
+                    "disable_notification": {
+                      "type": "MANUAL"
+                    }
+                  },
+                  "errorHandlingOptions": {
+                    "retryOnFailure": {
+                      "value": false
+                    },
+                    "continueOnFailure": {
+                      "value": false
+                    }
+                  }
+                },
+                "displayName": "Send Text Message",
+                "lastUpdatedDate": "2026-08-14T03:37:39.048Z"
+              },
+              "displayName": "Code",
+              "lastUpdatedDate": "2026-08-14T03:37:39.048Z"
+            },
+            "displayName": "Ask LLM",
+            "lastUpdatedDate": "2026-08-14T03:37:39.048Z"
+          },
+          "displayName": "Send HTTP request",
+          "lastUpdatedDate": "2026-08-14T03:37:39.047Z"
+        },
+        "lastUpdatedDate": "2026-08-14T03:37:39.047Z",
+        "type": "PIECE_TRIGGER",
+        "settings": {
+          "sampleData": {},
+          "propertySettings": {
+            "database_id": {
+              "type": "MANUAL"
+            }
+          },
+          "pieceName": "@activepieces/piece-notion",
+          "pieceVersion": "0.6.9",
+          "triggerName": "updated_database_item",
+          "input": {
+            "auth": "{{connections['G3tQYq9docLQN7ErJpsEf']}}",
+            "database_id": "3bbfc5bb-2509-809e-86b6-fbe306c801e1"
+          }
+        }
+      },
+      "valid": true,
+      "schemaVersion": "23",
+      "notes": []
+    }
+  ],
+  "status": "PUBLISHED"
+}
